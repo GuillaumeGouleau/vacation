@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2a78d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Dépenses Vacances</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --track: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --track: #383835;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: 16px; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+  h1 { font-size: 1.25rem; }
+  .conn { font-size: .72rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--baseline); color: var(--text-secondary); white-space: nowrap; }
+  .conn.on { border-color: var(--good); color: var(--good); font-weight: 600; }
+  .conn.off { border-color: var(--serious); color: var(--serious); font-weight: 600; }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .card h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 10px; font-weight: 600; }
+  label { display: block; font-size: .75rem; color: var(--text-secondary); margin-bottom: 3px; }
+  input, select, textarea, button {
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--page);
+    border: 1px solid var(--baseline);
+    border-radius: 10px;
+    padding: 11px 12px;
+    width: 100%;
+    min-height: 44px;
+  }
+  textarea { min-height: 110px; font-family: ui-monospace, monospace; font-size: .78rem; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--series-1); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 120px; }
+  button {
+    cursor: pointer;
+    background: var(--series-1);
+    color: #fff;
+    border: none;
+    font-weight: 600;
+    width: auto;
+    padding: 11px 18px;
+  }
+  button.wide { width: 100%; }
+  button.ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--baseline); font-weight: 500; }
+
+  /* Budget meter */
+  .hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .hero .big { font-size: 2rem; font-weight: 700; }
+  .hero .sub { color: var(--text-secondary); font-size: .88rem; }
+  .meter { height: 14px; border-radius: 7px; background: var(--track); overflow: hidden; margin: 6px 0; }
+  .meter .fill { height: 100%; border-radius: 7px 4px 4px 7px; background: var(--good); transition: width .3s, background .3s; }
+  .meter-legend { display: flex; justify-content: space-between; font-size: .78rem; color: var(--text-secondary); gap: 8px; }
+  .status-label { font-size: .84rem; font-weight: 600; margin-top: 5px; }
+  details.settings summary { cursor: pointer; font-size: .8rem; color: var(--text-secondary); margin-top: 10px; }
+  details.settings .row { margin-top: 10px; }
+
+  /* Expense list (cards on mobile) */
+  .exp {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 10px;
+    padding: 10px 2px; border-bottom: 1px solid var(--grid);
+  }
+  .exp:last-child { border-bottom: none; }
+  .exp .desc { font-weight: 600; }
+  .exp .meta { font-size: .76rem; color: var(--text-secondary); }
+  .exp .amt { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .exp .conv { text-align: right; font-size: .76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .exp .del { background: none; border: none; color: var(--critical); font-size: 1.2rem; padding: 0 2px; width: auto; min-height: 0; grid-row: 1 / 3; align-self: center; }
+  .exp-line2 { display: flex; justify-content: space-between; align-items: center; grid-column: 1 / 2; }
+  .empty { color: var(--text-muted); font-size: .85rem; padding: 14px 4px; text-align: center; }
+
+  /* Per-person bars */
+  .pbar-row { display: grid; grid-template-columns: minmax(64px, auto) 1fr; gap: 2px 10px; margin-bottom: 10px; font-size: .84rem; }
+  .pbar-track { height: 10px; background: var(--track); border-radius: 5px; overflow: hidden; align-self: center; }
+  .pbar-fill { height: 100%; border-radius: 5px 4px 4px 5px; background: var(--series-1); }
+  .pbar-val { grid-column: 2; font-variant-numeric: tabular-nums; color: var(--text-secondary); font-size: .78rem; }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--baseline); border-radius: 999px; padding: 6px 12px; font-size: .84rem; background: var(--page); }
+  .chip button { background: none; border: none; color: var(--text-muted); padding: 0 2px; font-size: 1rem; width: auto; min-height: 0; }
+
+  .note { font-size: .78rem; color: var(--text-secondary); border: 1px solid var(--grid); border-radius: 10px; padding: 9px 11px; margin-top: 10px; background: var(--page); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .totline { font-size: .85rem; color: var(--text-secondary); margin-top: 10px; }
+  .totline strong { color: var(--text-primary); }
+  .setup-step { margin-bottom: 14px; }
+  .setup-step b { display: block; margin-bottom: 4px; }
+  .setup-step p { font-size: .85rem; color: var(--text-secondary); margin-bottom: 6px; }
+  a { color: var(--series-1); }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: var(--text-primary); color: var(--page); padding: 10px 18px; border-radius: 10px;
+    font-size: .85rem; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 50; max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍁 Dépenses Vacances</h1>
+  <span class="conn" id="connBadge">hors ligne</span>
+</header>
+
+<!-- ============ SETUP SCREEN ============ -->
+<div id="setupScreen">
+  <div class="card">
+    <h2>Bienvenue !</h2>
+    <p style="font-size:.9rem; margin-bottom:12px">Cette application permet à toute la famille de noter les dépenses des vacances depuis chaque téléphone, avec un total partagé en temps réel (CAD $ / EUR €) et un suivi de budget.</p>
+    <div class="setup-step">
+      <b>Vous avez reçu un lien de partage ?</b>
+      <p>Ouvrez simplement ce lien : tout se configure automatiquement. Rien d'autre à faire.</p>
+    </div>
+    <div class="setup-step">
+      <b>Première installation (une seule fois, par l'organisateur) :</b>
+      <p>1. Créez un projet gratuit sur <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> (compte Google).<br>
+      2. Dans le projet : <i>Créer &gt; Realtime Database</i> &gt; démarrer en <b>mode test</b>.<br>
+      3. Dans <i>Paramètres du projet ⚙️ &gt; Général &gt; Vos applications</i>, ajoutez une application <b>Web</b> et copiez le bloc <code>firebaseConfig</code>.<br>
+      4. Collez-le ci-dessous :</p>
+      <textarea id="cfgInput" placeholder="const firebaseConfig = {&#10;  apiKey: '…',&#10;  authDomain: '…',&#10;  databaseURL: '…',&#10;  projectId: '…',&#10;  …&#10;};"></textarea>
+      <div class="row" style="margin-top:8px">
+        <div><input type="text" id="tripInput" placeholder="Nom du voyage (ex : canada2026)"></div>
+      </div>
+      <button class="wide" style="margin-top:8px" onclick="setupFirebase()">🚀 Démarrer avec synchronisation</button>
+    </div>
+    <div class="setup-step" style="margin-bottom:0">
+      <b>Ou sans synchronisation :</b>
+      <p>Les données restent enregistrées sur ce téléphone uniquement.</p>
+      <button class="ghost wide" onclick="setupLocal()">Utiliser sur ce téléphone seulement</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="app" class="hidden">
+
+  <!-- Budget -->
+  <div class="card">
+    <h2>Budget</h2>
+    <div class="hero">
+      <span class="big" id="spentBig">0 €</span>
+      <span class="sub" id="spentSub">dépensés</span>
+    </div>
+    <div class="meter"><div class="fill" id="meterFill" style="width:0%"></div></div>
+    <div class="meter-legend"><span id="pctLabel"></span><span id="remainLabel"></span></div>
+    <div class="status-label" id="statusLabel"></div>
+    <details class="settings">
+      <summary>⚙️ Régler le budget et le taux de change</summary>
+      <div class="row">
+        <div>
+          <label for="budgetAmount">Budget total</label>
+          <input type="number" inputmode="decimal" id="budgetAmount" min="0" step="10" placeholder="ex : 3000" onchange="saveMeta()">
+        </div>
+        <div style="flex:0 1 110px">
+          <label for="budgetCur">Devise</label>
+          <select id="budgetCur" onchange="saveMeta()">
+            <option value="EUR">EUR €</option>
+            <option value="CAD">CAD $</option>
+          </select>
+        </div>
+        <div>
+          <label for="rate">Taux : 1 € = ? $CA</label>
+          <input type="number" inputmode="decimal" id="rate" min="0.1" step="0.01" value="1.55" onchange="saveMeta()">
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Add expense -->
+  <div class="card">
+    <h2>Ajouter une dépense</h2>
+    <div class="row" style="margin-bottom:8px">
+      <div style="flex:1 1 100%">
+        <label for="desc">Description</label>
+        <input type="text" id="desc" placeholder="ex : Restaurant, essence…">
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <div style="flex:2 1 120px">
+        <label for="amount">Montant</label>
+        <input type="number" inputmode="decimal" id="amount" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div style="flex:1 1 90px">
+        <label for="cur">Devise</label>
+        <select id="cur">
+          <option value="CAD">CAD $</option>
+          <option value="EUR">EUR €</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <div>
+        <label for="payer">Qui a payé ?</label>
+        <select id="payer"></select>
+      </div>
+      <div>
+        <label for="cat">Catégorie</label>
+        <select id="cat">
+          <option>Restauration</option>
+          <option>Hébergement</option>
+          <option>Transport</option>
+          <option>Activités</option>
+          <option>Courses</option>
+          <option>Souvenirs</option>
+          <option>Autre</option>
+        </select>
+      </div>
+      <div>
+        <label for="date">Date</label>
+        <input type="date" id="date">
+      </div>
+    </div>
+    <button class="wide" onclick="addExpense()">+ Ajouter la dépense</button>
+  </div>
+
+  <!-- Per person -->
+  <div class="card">
+    <h2>Total par personne</h2>
+    <div id="perPerson"><div class="empty">Aucune dépense pour l’instant.</div></div>
+  </div>
+
+  <!-- List -->
+  <div class="card">
+    <h2>Dépenses</h2>
+    <div id="expList"><div class="empty">Aucune dépense enregistrée.</div></div>
+    <div class="totline" id="grandTotal"></div>
+    <div class="actions">
+      <button class="ghost" onclick="exportCSV()">⬇️ Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Participants -->
+  <div class="card">
+    <h2>Participants</h2>
+    <div class="row">
+      <div style="flex:2 1 150px"><input type="text" id="newPerson" placeholder="Prénom" onkeydown="if(event.key==='Enter')addPerson()"></div>
+      <div style="flex:0 1 auto"><button class="ghost" onclick="addPerson()">Ajouter</button></div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <!-- Sharing -->
+  <div class="card" id="shareCard">
+    <h2>Partage</h2>
+    <p style="font-size:.85rem; color:var(--text-secondary)">Envoyez ce lien à la famille (WhatsApp, SMS…) : en l'ouvrant sur leur téléphone, ils voient et ajoutent les dépenses en temps réel.</p>
+    <div class="actions">
+      <button class="wide" onclick="copyShareLink()">🔗 Copier le lien de partage</button>
+    </div>
+    <div class="note" id="tripNote"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script>
+  // ---------- State ----------
+  let mode = null;          // 'sync' | 'local'
+  let cfg = null, trip = null;
+  let dbRef = null;
+  let state = { meta: { budget: '', budgetCur: 'EUR', rate: 1.55 }, people: {}, expenses: {} };
+
+  const LS_KEY = 'dv_settings_v1';
+  const LS_DATA = 'dv_localdata_v1';
+
+  const fmtEUR = new Intl.NumberFormat('fr-FR', {style:'currency', currency:'EUR'});
+  const fmtCAD = new Intl.NumberFormat('fr-CA', {style:'currency', currency:'CAD'});
+  const fmt = (v, c) => c === 'EUR' ? fmtEUR.format(v) : fmtCAD.format(v);
+  const rate = () => parseFloat(state.meta.rate) || 1.55;
+  const toEUR = (a, c) => c === 'EUR' ? a : a / rate();
+  const toCAD = (a, c) => c === 'CAD' ? a : a * rate();
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+  function todayLocal() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+  function setConn(status) {
+    const b = document.getElementById('connBadge');
+    if (status === 'on') { b.textContent = '● synchronisé'; b.className = 'conn on'; }
+    else if (status === 'off') { b.textContent = '● hors ligne'; b.className = 'conn off'; }
+    else { b.textContent = 'sur ce téléphone'; b.className = 'conn'; }
+  }
+
+  // ---------- Boot ----------
+  function boot() {
+    // Share link ?  #<base64 json {cfg, trip}>
+    if (location.hash.length > 1) {
+      try {
+        const d = JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(1)))));
+        if (d.cfg && d.trip) {
+          localStorage.setItem(LS_KEY, JSON.stringify({mode:'sync', cfg:d.cfg, trip:d.trip}));
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      } catch(e) {}
+    }
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved) {
+      try {
+        const s = JSON.parse(saved);
+        if (s.mode === 'sync' && s.cfg && s.trip) { startSync(s.cfg, s.trip); return; }
+        if (s.mode === 'local') { startLocal(); return; }
+      } catch(e) {}
+    }
+    document.getElementById('setupScreen').classList.remove('hidden');
+  }
+
+  function setupFirebase() {
+    const raw = document.getElementById('cfgInput').value;
+    const tripName = (document.getElementById('tripInput').value.trim() || 'vacances')
+      .toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) { toast('Collez le bloc firebaseConfig complet, avec { … }'); return; }
+    let parsed;
+    try { parsed = (new Function('return ' + m[0]))(); } catch(e) { toast('Configuration illisible — copiez-la à nouveau.'); return; }
+    if (!parsed.databaseURL) {
+      toast("Il manque 'databaseURL' : activez Realtime Database puis recopiez la config.");
+      return;
+    }
+    localStorage.setItem(LS_KEY, JSON.stringify({mode:'sync', cfg: parsed, trip: tripName}));
+    startSync(parsed, tripName);
+  }
+  function setupLocal() {
+    localStorage.setItem(LS_KEY, JSON.stringify({mode:'local'}));
+    startLocal();
+  }
+
+  function startSync(config, tripName) {
+    mode = 'sync'; cfg = config; trip = tripName;
+    try {
+      firebase.initializeApp(cfg);
+      const db = firebase.database();
+      dbRef = db.ref('trips/' + trip);
+      db.ref('.info/connected').on('value', s => setConn(s.val() ? 'on' : 'off'));
+      dbRef.on('value', snap => {
+        const v = snap.val() || {};
+        state = {
+          meta: Object.assign({ budget:'', budgetCur:'EUR', rate:1.55 }, v.meta || {}),
+          people: v.people || {},
+          expenses: v.expenses || {}
+        };
+        render();
+      }, err => { toast('Erreur de connexion : ' + err.message); setConn('off'); });
+      showApp();
+      document.getElementById('tripNote').innerHTML =
+        'Voyage : <strong>' + esc(trip) + '</strong> — les données sont synchronisées entre tous les téléphones qui ouvrent le lien.';
+    } catch(e) {
+      toast('Configuration invalide : ' + e.message);
+      localStorage.removeItem(LS_KEY);
+      location.reload();
+    }
+  }
+
+  function startLocal() {
+    mode = 'local';
+    setConn('local');
+    const d = localStorage.getItem(LS_DATA);
+    if (d) { try { state = JSON.parse(d); } catch(e) {} }
+    if (!state.people || !Object.keys(state.people).length) state.people = { p1: 'Moi' };
+    showApp();
+    document.getElementById('shareCard').classList.add('hidden');
+    render();
+  }
+
+  function showApp() {
+    document.getElementById('setupScreen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('date').value = todayLocal();
+  }
+
+  // ---------- Writes ----------
+  function persistLocal() {
+    if (mode === 'local') { localStorage.setItem(LS_DATA, JSON.stringify(state)); render(); }
+  }
+  function newKey() { return 'k' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+
+  function saveMeta() {
+    const meta = {
+      budget: document.getElementById('budgetAmount').value,
+      budgetCur: document.getElementById('budgetCur').value,
+      rate: document.getElementById('rate').value
+    };
+    state.meta = Object.assign({}, state.meta, meta);
+    if (mode === 'sync') dbRef.child('meta').update(meta);
+    else persistLocal();
+    render();
+  }
+
+  function addPerson() {
+    const el = document.getElementById('newPerson');
+    const name = el.value.trim();
+    if (!name) return;
+    if (Object.values(state.people).includes(name)) { toast(name + ' existe déjà.'); return; }
+    el.value = '';
+    if (mode === 'sync') dbRef.child('people').push(name);
+    else { state.people[newKey()] = name; persistLocal(); }
+  }
+  function removePerson(key) {
+    const name = state.people[key];
+    if (Object.values(state.expenses).some(e => e.payer === name)) {
+      toast('Impossible : des dépenses sont liées à ' + name + '.'); return;
+    }
+    if (mode === 'sync') dbRef.child('people/' + key).remove();
+    else { delete state.people[key]; persistLocal(); }
+  }
+
+  function addExpense() {
+    const desc = document.getElementById('desc').value.trim();
+    const amount = parseFloat(document.getElementById('amount').value);
+    if (!desc) { toast('Ajoutez une description.'); return; }
+    if (!amount || amount <= 0) { toast('Indiquez un montant.'); return; }
+    const payer = document.getElementById('payer').value;
+    if (!payer) { toast("Ajoutez d'abord un participant en bas de page."); return; }
+    const exp = {
+      date: document.getElementById('date').value || todayLocal(),
+      desc,
+      cat: document.getElementById('cat').value,
+      payer,
+      amount,
+      cur: document.getElementById('cur').value,
+      ts: Date.now()
+    };
+    document.getElementById('desc').value = '';
+    document.getElementById('amount').value = '';
+    if (mode === 'sync') dbRef.child('expenses').push(exp);
+    else { state.expenses[newKey()] = exp; persistLocal(); }
+    toast('Dépense ajoutée ✓');
+  }
+  function removeExpense(key) {
+    if (mode === 'sync') dbRef.child('expenses/' + key).remove();
+    else { delete state.expenses[key]; persistLocal(); }
+  }
+
+  // ---------- Render ----------
+  function render() {
+    // meta inputs (don't clobber while typing)
+    [['budgetAmount','budget'],['budgetCur','budgetCur'],['rate','rate']].forEach(([id, k]) => {
+      const el = document.getElementById(id);
+      if (document.activeElement !== el && state.meta[k] !== undefined && state.meta[k] !== '') el.value = state.meta[k];
+    });
+
+    // payer select + chips
+    const names = Object.entries(state.people); // [key, name]
+    const payerSel = document.getElementById('payer');
+    const curPayer = payerSel.value;
+    payerSel.innerHTML = names.map(([k, n]) => `<option${n===curPayer?' selected':''}>${esc(n)}</option>`).join('');
+    document.getElementById('chips').innerHTML = names.map(([k, n]) =>
+      `<span class="chip">${esc(n)} <button title="Retirer" onclick="removePerson('${k}')">×</button></span>`).join('') ||
+      '<span class="empty" style="padding:4px">Ajoutez les membres de la famille.</span>';
+
+    // totals
+    const entries = Object.entries(state.expenses);
+    const totEUR = entries.reduce((s, [,e]) => s + toEUR(e.amount, e.cur), 0);
+    const totCAD = totEUR * rate();
+
+    // budget
+    const budget = parseFloat(state.meta.budget) || 0;
+    const bCur = state.meta.budgetCur || 'EUR';
+    const spent = bCur === 'EUR' ? totEUR : totCAD;
+    document.getElementById('spentBig').textContent = fmt(spent, bCur);
+    document.getElementById('spentSub').textContent = 'dépensés · ' + (bCur === 'EUR' ? fmt(totCAD,'CAD') : fmt(totEUR,'EUR'));
+
+    const fill = document.getElementById('meterFill');
+    const status = document.getElementById('statusLabel');
+    if (budget > 0) {
+      const pct = spent / budget * 100;
+      fill.style.width = Math.min(pct, 100) + '%';
+      let color = 'var(--good)', txt = '✓ Dans le budget', tcol = 'var(--good)';
+      if (pct >= 100) { color = 'var(--critical)'; txt = '⛔ Budget dépassé de ' + fmt(spent - budget, bCur); tcol = 'var(--critical)'; }
+      else if (pct >= 85) { color = 'var(--serious)'; txt = '⚠️ Attention, budget presque atteint'; tcol = 'var(--serious)'; }
+      else if (pct >= 65) { color = 'var(--warning)'; txt = '△ Plus de la moitié du budget utilisée'; tcol = 'var(--text-secondary)'; }
+      fill.style.background = color;
+      status.textContent = txt; status.style.color = tcol;
+      document.getElementById('pctLabel').textContent = Math.round(pct) + ' % du budget';
+      document.getElementById('remainLabel').textContent = pct < 100 ? 'Reste ' + fmt(budget - spent, bCur) : 'Budget : ' + fmt(budget, bCur);
+    } else {
+      fill.style.width = '0%';
+      status.textContent = '';
+      document.getElementById('pctLabel').textContent = 'Définissez un budget dans ⚙️ ci-dessous';
+      document.getElementById('remainLabel').textContent = '';
+    }
+
+    // per person
+    const per = {};
+    names.forEach(([,n]) => per[n] = 0);
+    entries.forEach(([,e]) => { per[e.payer] = (per[e.payer] || 0) + toEUR(e.amount, e.cur); });
+    const maxPer = Math.max(...Object.values(per), 0);
+    const ppEl = document.getElementById('perPerson');
+    ppEl.innerHTML = entries.length ? Object.entries(per).sort((a,b) => b[1]-a[1]).map(([n, v]) => `
+      <div class="pbar-row">
+        <span>${esc(n)}</span>
+        <div class="pbar-track"><div class="pbar-fill" style="width:${maxPer ? (v/maxPer*100) : 0}%"></div></div>
+        <span class="pbar-val">${fmtEUR.format(v)} · ${fmtCAD.format(v*rate())}</span>
+      </div>`).join('')
+      : '<div class="empty">Aucune dépense pour l’instant.</div>';
+
+    // list (recent first)
+    const sorted = entries.sort((a,b) => (b[1].date.localeCompare(a[1].date)) || ((b[1].ts||0) - (a[1].ts||0)));
+    document.getElementById('expList').innerHTML = sorted.length ? sorted.map(([k, e]) => `
+      <div class="exp">
+        <div>
+          <div class="desc">${esc(e.desc)}</div>
+          <div class="meta">${fmtDate(e.date)} · ${esc(e.cat)} · payé par ${esc(e.payer)}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px">
+          <div>
+            <div class="amt">${fmt(e.amount, e.cur)}</div>
+            <div class="conv">${e.cur==='CAD' ? fmtEUR.format(toEUR(e.amount,'CAD')) : fmtCAD.format(toCAD(e.amount,'EUR'))}</div>
+          </div>
+          <button class="del" title="Supprimer" onclick="removeExpense('${k}')">×</button>
+        </div>
+      </div>`).join('')
+      : '<div class="empty">Aucune dépense enregistrée.</div>';
+
+    document.getElementById('grandTotal').innerHTML = sorted.length ?
+      `${sorted.length} dépense${sorted.length>1?'s':''} — Total : <strong>${fmtEUR.format(totEUR)}</strong> soit <strong>${fmtCAD.format(totCAD)}</strong>` : '';
+  }
+  function fmtDate(iso) { const p = (iso||'').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : iso; }
+
+  // ---------- Share & export ----------
+  function copyShareLink() {
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({cfg, trip}))));
+    const url = location.origin + location.pathname + '#' + payload;
+    (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+      .then(() => toast('Lien copié ! Envoyez-le à la famille 📲'))
+      .catch(() => { prompt('Copiez ce lien :', url); });
+  }
+  function exportCSV() {
+    const rows = [['Date','Description','Catégorie','Payé par','Montant','Devise','Équivalent EUR','Équivalent CAD']];
+    Object.values(state.expenses)
+      .sort((a,b) => a.date.localeCompare(b.date))
+      .forEach(e => rows.push([e.date, e.desc, e.cat, e.payer, e.amount.toFixed(2), e.cur,
+        toEUR(e.amount, e.cur).toFixed(2), toCAD(e.amount, e.cur).toFixed(2)]));
+    const csv = '﻿' + rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+    a.download = 'depenses-vacances-' + todayLocal() + '.csv';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  boot();
+</script>
+</body>
+</html>
