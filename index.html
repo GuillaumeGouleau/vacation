@@ -300,6 +300,20 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script>
+  // ---------- Preset (configuration intégrée — aucune saisie nécessaire) ----------
+  const PRESET = {
+    cfg: {
+      apiKey: "AIzaSyCV128XPmHJrthgLEi3702lDBBJ__YrMps",
+      authDomain: "vacation-20f46.firebaseapp.com",
+      databaseURL: "https://vacation-20f46-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "vacation-20f46",
+      storageBucket: "vacation-20f46.firebasestorage.app",
+      messagingSenderId: "952613427883",
+      appId: "1:952613427883:web:d12cc0dfbd9e18983b75ee"
+    },
+    trip: 'vacances'
+  };
+
   // ---------- State ----------
   let mode = null;          // 'sync' | 'local'
   let cfg = null, trip = null;
@@ -352,6 +366,11 @@
         if (s.mode === 'sync' && s.cfg && s.trip) { startSync(s.cfg, s.trip); return; }
         if (s.mode === 'local') { startLocal(); return; }
       } catch(e) {}
+    }
+    if (typeof PRESET !== 'undefined' && PRESET && PRESET.cfg) {
+      localStorage.setItem(LS_KEY, JSON.stringify({mode:'sync', cfg: PRESET.cfg, trip: PRESET.trip}));
+      startSync(PRESET.cfg, PRESET.trip);
+      return;
     }
     document.getElementById('setupScreen').classList.remove('hidden');
   }
