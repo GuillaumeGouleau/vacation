@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#2a78d6">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Dépenses">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <title>Dépenses Vacances</title>
 <style>
   :root {
@@ -392,6 +397,18 @@
 
   function startSync(config, tripName) {
     mode = 'sync'; cfg = config; trip = tripName;
+    // Cache local : affiche immédiatement les dernières données connues (utile hors ligne)
+    const cacheKey = 'dv_synccache_' + trip;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) { try { state = JSON.parse(cached); } catch(e) {} }
+    if (typeof firebase === 'undefined') {
+      // Hors ligne au lancement : SDK non chargé — on affiche les données en cache, sans sync
+      setConn('off');
+      showApp();
+      render();
+      toast('Hors ligne : données du dernier passage affichées.');
+      return;
+    }
     try {
       firebase.initializeApp(cfg);
       const db = firebase.database();
@@ -403,15 +420,18 @@
           meta: Object.assign({ budget:'', budgetCur:'EUR', rate:1.61 }, v.meta || {}),
           expenses: v.expenses || {}
         };
+        try { localStorage.setItem(cacheKey, JSON.stringify(state)); } catch(e) {}
         render();
       }, err => { toast('Erreur de connexion : ' + err.message); setConn('off'); });
       showApp();
       document.getElementById('tripNote').innerHTML =
         'Voyage : <strong>' + esc(trip) + '</strong> — les données sont synchronisées entre tous les téléphones qui ouvrent le lien.';
     } catch(e) {
-      toast('Configuration invalide : ' + e.message);
-      localStorage.removeItem(LS_KEY);
-      location.reload();
+      // Ne pas recharger en boucle : afficher les données en cache et signaler l'erreur
+      setConn('off');
+      showApp();
+      render();
+      toast('Connexion impossible : ' + e.message);
     }
   }
 
@@ -600,6 +620,11 @@
   }
 
   boot();
+
+  // PWA : enregistrement du service worker (cache hors ligne + installation sur l'écran d'accueil)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
 </script>
 </body>
 </html>
