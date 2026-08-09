@@ -1,5 +1,5 @@
 /* Service worker — Dépenses Vacances */
-const CACHE = 'dv-cache-v1';
+const CACHE = 'dv-cache-v2';
 const ASSETS = [
   './',
   './index.html',
