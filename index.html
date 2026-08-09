@@ -144,6 +144,21 @@
   .setup-step b { display: block; margin-bottom: 4px; }
   .setup-step p { font-size: .85rem; color: var(--text-secondary); margin-bottom: 6px; }
   a { color: var(--series-1); }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  .modal {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px; width: 100%; max-width: 340px;
+  }
+  .modal h3 { font-size: 1rem; margin-bottom: 8px; }
+  .modal .modal-detail { font-size: .85rem; color: var(--text-secondary); margin-bottom: 16px; }
+  .modal .modal-detail strong { color: var(--text-primary); }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-actions button { flex: 1; }
+  .btn-danger { background: var(--critical); color: #fff; }
   .toast {
     position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: var(--text-primary); color: var(--page); padding: 10px 18px; border-radius: 10px;
@@ -304,6 +319,18 @@
       <button class="wide" onclick="copyShareLink()">🔗 Copier le lien de partage</button>
     </div>
     <div class="note" id="tripNote"></div>
+  </div>
+</div>
+
+<!-- Confirmation de suppression -->
+<div class="modal-overlay hidden" id="deleteModal" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="modal">
+    <h3>Supprimer cette dépense ?</h3>
+    <div class="modal-detail" id="deleteDetail"></div>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeDeleteModal()">Annuler</button>
+      <button class="btn-danger" onclick="confirmDelete()">Supprimer</button>
+    </div>
   </div>
 </div>
 
@@ -526,10 +553,28 @@
       toast('Dépense ajoutée ✓');
     }
   }
+  let pendingDeleteKey = null;
+
   function removeExpense(key) {
+    const e = state.expenses[key];
+    if (!e) return;
+    pendingDeleteKey = key;
+    document.getElementById('deleteDetail').innerHTML =
+      `<strong>${esc(e.desc)}</strong> — ${fmt(e.amount, e.cur)}<br>${fmtDate(e.date)}${e.time ? ' à ' + esc(e.time) : ''} · payé par ${pname(e.payer)}`;
+    document.getElementById('deleteModal').classList.remove('hidden');
+  }
+  function closeDeleteModal() {
+    pendingDeleteKey = null;
+    document.getElementById('deleteModal').classList.add('hidden');
+  }
+  function confirmDelete() {
+    const key = pendingDeleteKey;
+    closeDeleteModal();
+    if (!key) return;
     if (key === editingKey) cancelEdit();
     if (mode === 'sync') dbRef.child('expenses/' + key).remove();
     else { delete state.expenses[key]; persistLocal(); }
+    toast('Dépense supprimée');
   }
 
   function startEdit(key) {
