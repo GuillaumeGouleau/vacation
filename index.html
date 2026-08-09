@@ -241,7 +241,7 @@
     <div class="row" style="margin-bottom:12px">
       <div>
         <label for="payer">Qui a payé ?</label>
-        <select id="payer"></select>
+        <select id="payer" onchange="try{localStorage.setItem('dv_lastpayer', this.value)}catch(e){}"></select>
       </div>
       <div>
         <label for="cat">Catégorie</label>
@@ -504,9 +504,11 @@
       if (document.activeElement !== el && state.meta[k] !== undefined && state.meta[k] !== '') el.value = state.meta[k];
     });
 
-    // payer select
+    // payer select (mémorise le dernier choix sur cet appareil)
     const payerSel = document.getElementById('payer');
-    const curPayer = payerSel.value;
+    let curPayer = payerSel.value;
+    if (!curPayer) { try { curPayer = localStorage.getItem('dv_lastpayer') || ''; } catch(e) {} }
+    if (!PEOPLE.includes(curPayer)) curPayer = PEOPLE[0];
     payerSel.innerHTML = PEOPLE.map(n => `<option${n===curPayer?' selected':''}>${esc(n)}</option>`).join('');
 
     // totals
