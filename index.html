@@ -593,7 +593,7 @@
     if (!e) return;
     pendingDeleteKey = key;
     document.getElementById('deleteDetail').innerHTML =
-      `<strong>${esc(e.desc)}</strong> — ${fmt(e.amount, e.cur)}<br>${fmtDate(e.date)}${e.time ? ' à ' + esc(e.time) : ''} · payé par ${pname(e.payer)}`;
+      `<strong>${esc(e.desc)}</strong> — ${fmt(e.amount, e.cur)}<br>${fmtDate(e.date)}${e.time ? ' à ' + esc(e.time) : ''} · Payé par ${pname(e.payer)}`;
     document.getElementById('deleteModal').classList.remove('hidden');
   }
   function closeDeleteModal() {
@@ -725,7 +725,7 @@
       <div class="exp">
         <div>
           <div class="desc" style="display:flex; align-items:center">${pdot(e.payer)}<span>${esc(e.desc)}</span></div>
-          <div class="meta">${fmtDate(e.date)}${e.time ? ' à ' + esc(e.time) : ''} · ${esc(e.cat)} · payé par ${pname(e.payer)}</div>
+          <div class="meta">${fmtDate(e.date)}${e.time ? ' à ' + esc(e.time) : ''} · ${esc(e.cat)} · Payé par ${pname(e.payer)}</div>
         </div>
         <div style="display:flex; align-items:center; gap:6px">
           <div>
