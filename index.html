@@ -144,6 +144,10 @@
   .setup-step b { display: block; margin-bottom: 4px; }
   .setup-step p { font-size: .85rem; color: var(--text-secondary); margin-bottom: 6px; }
   a { color: var(--series-1); }
+  .pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: .8rem; color: var(--text-secondary); }
+  .pager.hidden { display: none; }
+  button.small { padding: 8px 12px; font-size: .8rem; min-height: 0; }
+  button[disabled] { opacity: .35; pointer-events: none; }
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.45);
     display: flex; align-items: center; justify-content: center;
@@ -239,10 +243,50 @@
     </details>
   </div>
 
-  <!-- Add expense -->
+  <!-- Add expense button -->
+  <button class="wide" id="openAddBtn" onclick="openExpenseModal()" style="margin-bottom:12px; padding:14px">＋ Ajouter une dépense</button>
+
+  <!-- Per person + settlement -->
   <div class="card">
-    <h2 id="formTitle">Ajouter une dépense</h2>
-    <div class="row" style="margin-bottom:8px">
+    <h2>Partage 50 / 50</h2>
+    <div class="hero" style="margin-bottom:10px">
+      <span class="big" id="settleBig" style="font-size:1.25rem"></span>
+    </div>
+    <div class="settle-sub" id="settleSub" style="font-size:.8rem; color:var(--text-secondary); margin:-6px 0 12px"></div>
+    <div id="perPerson"><div class="empty">Aucune dépense pour l’instant.</div></div>
+  </div>
+
+  <!-- List -->
+  <div class="card">
+    <h2>Dépenses</h2>
+    <div id="expList"><div class="empty">Aucune dépense enregistrée.</div></div>
+    <div class="pager hidden" id="pager">
+      <button class="ghost small" id="prevBtn" onclick="prevPage()">‹ Précédent</button>
+      <span id="pageInfo"></span>
+      <button class="ghost small" id="nextBtn" onclick="nextPage()">Suivant ›</button>
+    </div>
+    <div class="totline" id="grandTotal"></div>
+    <div class="actions">
+      <button class="ghost" onclick="exportCSV()">⬇️ Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Sharing -->
+  <div class="card" id="shareCard">
+    <h2>Partage</h2>
+    <p style="font-size:.85rem; color:var(--text-secondary)">Envoyez ce lien à la famille (WhatsApp, SMS…) : en l'ouvrant sur leur téléphone, ils voient et ajoutent les dépenses en temps réel.</p>
+    <div class="actions">
+      <button class="wide" onclick="copyShareLink()">🔗 Copier le lien de partage</button>
+    </div>
+    <div class="note" id="tripNote"></div>
+  </div>
+</div>
+
+<!-- Formulaire de dépense (modal) -->
+<div class="modal-overlay hidden" id="expenseModal" onclick="if(event.target===this)closeExpenseModal()">
+  <div class="modal" style="max-width:420px; max-height:88vh; overflow-y:auto">
+    <h3 id="formTitle">Ajouter une dépense</h3>
+    <div class="row" style="margin:12px 0 8px">
       <div style="flex:1 1 100%">
         <label for="desc">Description</label>
         <input type="text" id="desc" placeholder="ex : Restaurant, essence…">
@@ -261,7 +305,7 @@
         </select>
       </div>
     </div>
-    <div class="row" style="margin-bottom:12px">
+    <div class="row" style="margin-bottom:14px">
       <div>
         <label for="payer">Qui a payé ?</label>
         <select id="payer" onchange="try{localStorage.setItem('dv_lastpayer', this.value)}catch(e){}"></select>
@@ -287,38 +331,10 @@
         <input type="time" id="time">
       </div>
     </div>
-    <button class="wide" id="addBtn" onclick="addExpense()">+ Ajouter la dépense</button>
-    <button class="ghost wide hidden" id="cancelEditBtn" onclick="cancelEdit()" style="margin-top:8px">Annuler la modification</button>
-  </div>
-
-  <!-- Per person + settlement -->
-  <div class="card">
-    <h2>Partage 50 / 50</h2>
-    <div class="hero" style="margin-bottom:10px">
-      <span class="big" id="settleBig" style="font-size:1.25rem"></span>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeExpenseModal()">Annuler</button>
+      <button id="addBtn" onclick="addExpense()">+ Ajouter</button>
     </div>
-    <div class="settle-sub" id="settleSub" style="font-size:.8rem; color:var(--text-secondary); margin:-6px 0 12px"></div>
-    <div id="perPerson"><div class="empty">Aucune dépense pour l’instant.</div></div>
-  </div>
-
-  <!-- List -->
-  <div class="card">
-    <h2>Dépenses</h2>
-    <div id="expList"><div class="empty">Aucune dépense enregistrée.</div></div>
-    <div class="totline" id="grandTotal"></div>
-    <div class="actions">
-      <button class="ghost" onclick="exportCSV()">⬇️ Export CSV</button>
-    </div>
-  </div>
-
-  <!-- Sharing -->
-  <div class="card" id="shareCard">
-    <h2>Partage</h2>
-    <p style="font-size:.85rem; color:var(--text-secondary)">Envoyez ce lien à la famille (WhatsApp, SMS…) : en l'ouvrant sur leur téléphone, ils voient et ajoutent les dépenses en temps réel.</p>
-    <div class="actions">
-      <button class="wide" onclick="copyShareLink()">🔗 Copier le lien de partage</button>
-    </div>
-    <div class="note" id="tripNote"></div>
   </div>
 </div>
 
@@ -521,6 +537,25 @@
   }
 
   let editingKey = null;
+  const PAGE_SIZE = 10;
+  let page = 0;
+
+  function prevPage() { page = Math.max(0, page - 1); render(); }
+  function nextPage() { page = page + 1; render(); }
+
+  function openExpenseModal() {
+    editingKey = null;
+    document.getElementById('desc').value = '';
+    document.getElementById('amount').value = '';
+    resetDateTime();
+    document.getElementById('formTitle').textContent = 'Ajouter une dépense';
+    document.getElementById('addBtn').textContent = '+ Ajouter';
+    document.getElementById('expenseModal').classList.remove('hidden');
+  }
+  function closeExpenseModal() {
+    editingKey = null;
+    document.getElementById('expenseModal').classList.add('hidden');
+  }
 
   function addExpense() {
     const desc = document.getElementById('desc').value.trim();
@@ -543,15 +578,13 @@
       if (mode === 'sync') dbRef.child('expenses/' + editingKey).set(exp);
       else { state.expenses[editingKey] = exp; persistLocal(); }
       toast('Dépense modifiée ✓');
-      cancelEdit();
     } else {
+      page = 0; // revenir à la première page pour voir la nouvelle dépense
       if (mode === 'sync') dbRef.child('expenses').push(exp);
       else { state.expenses[newKey()] = exp; persistLocal(); }
-      document.getElementById('desc').value = '';
-      document.getElementById('amount').value = '';
-      resetDateTime();
       toast('Dépense ajoutée ✓');
     }
+    closeExpenseModal();
   }
   let pendingDeleteKey = null;
 
@@ -571,7 +604,7 @@
     const key = pendingDeleteKey;
     closeDeleteModal();
     if (!key) return;
-    if (key === editingKey) cancelEdit();
+    if (key === editingKey) closeExpenseModal();
     if (mode === 'sync') dbRef.child('expenses/' + key).remove();
     else { delete state.expenses[key]; persistLocal(); }
     toast('Dépense supprimée');
@@ -589,19 +622,8 @@
     document.getElementById('date').value = e.date;
     document.getElementById('time').value = e.time || '';
     document.getElementById('formTitle').textContent = 'Modifier la dépense';
-    document.getElementById('addBtn').textContent = '✓ Enregistrer la modification';
-    document.getElementById('cancelEditBtn').classList.remove('hidden');
-    document.getElementById('formTitle').scrollIntoView({ behavior: 'smooth' });
-  }
-
-  function cancelEdit() {
-    editingKey = null;
-    document.getElementById('desc').value = '';
-    document.getElementById('amount').value = '';
-    resetDateTime();
-    document.getElementById('formTitle').textContent = 'Ajouter une dépense';
-    document.getElementById('addBtn').textContent = '+ Ajouter la dépense';
-    document.getElementById('cancelEditBtn').classList.add('hidden');
+    document.getElementById('addBtn').textContent = '✓ Enregistrer';
+    document.getElementById('expenseModal').classList.remove('hidden');
   }
 
   // ---------- Render ----------
@@ -687,7 +709,19 @@
 
     // list (recent first)
     const sorted = entries.sort((a,b) => (b[1].date.localeCompare(a[1].date)) || ((b[1].time||'').localeCompare(a[1].time||'')) || ((b[1].ts||0) - (a[1].ts||0)));
-    document.getElementById('expList').innerHTML = sorted.length ? sorted.map(([k, e]) => `
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    page = Math.min(page, totalPages - 1);
+    const visible = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const pager = document.getElementById('pager');
+    if (totalPages > 1) {
+      pager.classList.remove('hidden');
+      document.getElementById('pageInfo').textContent = 'Page ' + (page + 1) + ' / ' + totalPages;
+      document.getElementById('prevBtn').disabled = page === 0;
+      document.getElementById('nextBtn').disabled = page >= totalPages - 1;
+    } else {
+      pager.classList.add('hidden');
+    }
+    document.getElementById('expList').innerHTML = visible.length ? visible.map(([k, e]) => `
       <div class="exp">
         <div>
           <div class="desc" style="display:flex; align-items:center">${pdot(e.payer)}<span>${esc(e.desc)}</span></div>
