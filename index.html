@@ -205,7 +205,7 @@
         </div>
         <div>
           <label for="rate">Taux : 1 € = ? $CA</label>
-          <input type="number" inputmode="decimal" id="rate" min="0.1" step="0.01" value="1.55" onchange="saveMeta()">
+          <input type="number" inputmode="decimal" id="rate" min="0.1" step="0.01" value="1.61" onchange="saveMeta()">
         </div>
       </div>
     </details>
@@ -258,9 +258,13 @@
     <button class="wide" onclick="addExpense()">+ Ajouter la dépense</button>
   </div>
 
-  <!-- Per person -->
+  <!-- Per person + settlement -->
   <div class="card">
-    <h2>Total par personne</h2>
+    <h2>Partage 50 / 50</h2>
+    <div class="hero" style="margin-bottom:10px">
+      <span class="big" id="settleBig" style="font-size:1.25rem"></span>
+    </div>
+    <div class="settle-sub" id="settleSub" style="font-size:.8rem; color:var(--text-secondary); margin:-6px 0 12px"></div>
     <div id="perPerson"><div class="empty">Aucune dépense pour l’instant.</div></div>
   </div>
 
@@ -272,16 +276,6 @@
     <div class="actions">
       <button class="ghost" onclick="exportCSV()">⬇️ Export CSV</button>
     </div>
-  </div>
-
-  <!-- Participants -->
-  <div class="card">
-    <h2>Participants</h2>
-    <div class="row">
-      <div style="flex:2 1 150px"><input type="text" id="newPerson" placeholder="Prénom" onkeydown="if(event.key==='Enter')addPerson()"></div>
-      <div style="flex:0 1 auto"><button class="ghost" onclick="addPerson()">Ajouter</button></div>
-    </div>
-    <div class="chips" id="chips"></div>
   </div>
 
   <!-- Sharing -->
@@ -315,10 +309,11 @@
   };
 
   // ---------- State ----------
+  const PEOPLE = ['Guillaume', 'Gaëlle'];
   let mode = null;          // 'sync' | 'local'
   let cfg = null, trip = null;
   let dbRef = null;
-  let state = { meta: { budget: '', budgetCur: 'EUR', rate: 1.55 }, people: {}, expenses: {} };
+  let state = { meta: { budget: '', budgetCur: 'EUR', rate: 1.61 }, expenses: {} };
 
   const LS_KEY = 'dv_settings_v1';
   const LS_DATA = 'dv_localdata_v1';
@@ -326,7 +321,7 @@
   const fmtEUR = new Intl.NumberFormat('fr-FR', {style:'currency', currency:'EUR'});
   const fmtCAD = new Intl.NumberFormat('fr-CA', {style:'currency', currency:'CAD'});
   const fmt = (v, c) => c === 'EUR' ? fmtEUR.format(v) : fmtCAD.format(v);
-  const rate = () => parseFloat(state.meta.rate) || 1.55;
+  const rate = () => parseFloat(state.meta.rate) || 1.61;
   const toEUR = (a, c) => c === 'EUR' ? a : a / rate();
   const toCAD = (a, c) => c === 'CAD' ? a : a * rate();
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -405,8 +400,7 @@
       dbRef.on('value', snap => {
         const v = snap.val() || {};
         state = {
-          meta: Object.assign({ budget:'', budgetCur:'EUR', rate:1.55 }, v.meta || {}),
-          people: v.people || {},
+          meta: Object.assign({ budget:'', budgetCur:'EUR', rate:1.61 }, v.meta || {}),
           expenses: v.expenses || {}
         };
         render();
@@ -426,7 +420,6 @@
     setConn('local');
     const d = localStorage.getItem(LS_DATA);
     if (d) { try { state = JSON.parse(d); } catch(e) {} }
-    if (!state.people || !Object.keys(state.people).length) state.people = { p1: 'Moi' };
     showApp();
     document.getElementById('shareCard').classList.add('hidden');
     render();
@@ -454,24 +447,6 @@
     if (mode === 'sync') dbRef.child('meta').update(meta);
     else persistLocal();
     render();
-  }
-
-  function addPerson() {
-    const el = document.getElementById('newPerson');
-    const name = el.value.trim();
-    if (!name) return;
-    if (Object.values(state.people).includes(name)) { toast(name + ' existe déjà.'); return; }
-    el.value = '';
-    if (mode === 'sync') dbRef.child('people').push(name);
-    else { state.people[newKey()] = name; persistLocal(); }
-  }
-  function removePerson(key) {
-    const name = state.people[key];
-    if (Object.values(state.expenses).some(e => e.payer === name)) {
-      toast('Impossible : des dépenses sont liées à ' + name + '.'); return;
-    }
-    if (mode === 'sync') dbRef.child('people/' + key).remove();
-    else { delete state.people[key]; persistLocal(); }
   }
 
   function addExpense() {
@@ -509,14 +484,10 @@
       if (document.activeElement !== el && state.meta[k] !== undefined && state.meta[k] !== '') el.value = state.meta[k];
     });
 
-    // payer select + chips
-    const names = Object.entries(state.people); // [key, name]
+    // payer select
     const payerSel = document.getElementById('payer');
     const curPayer = payerSel.value;
-    payerSel.innerHTML = names.map(([k, n]) => `<option${n===curPayer?' selected':''}>${esc(n)}</option>`).join('');
-    document.getElementById('chips').innerHTML = names.map(([k, n]) =>
-      `<span class="chip">${esc(n)} <button title="Retirer" onclick="removePerson('${k}')">×</button></span>`).join('') ||
-      '<span class="empty" style="padding:4px">Ajoutez les membres de la famille.</span>';
+    payerSel.innerHTML = PEOPLE.map(n => `<option${n===curPayer?' selected':''}>${esc(n)}</option>`).join('');
 
     // totals
     const entries = Object.entries(state.expenses);
@@ -550,9 +521,9 @@
       document.getElementById('remainLabel').textContent = '';
     }
 
-    // per person
+    // per person + settlement (partage 50/50)
     const per = {};
-    names.forEach(([,n]) => per[n] = 0);
+    PEOPLE.forEach(n => per[n] = 0);
     entries.forEach(([,e]) => { per[e.payer] = (per[e.payer] || 0) + toEUR(e.amount, e.cur); });
     const maxPer = Math.max(...Object.values(per), 0);
     const ppEl = document.getElementById('perPerson');
@@ -563,6 +534,26 @@
         <span class="pbar-val">${fmtEUR.format(v)} · ${fmtCAD.format(v*rate())}</span>
       </div>`).join('')
       : '<div class="empty">Aucune dépense pour l’instant.</div>';
+
+    const settleBig = document.getElementById('settleBig');
+    const settleSub = document.getElementById('settleSub');
+    if (!entries.length) {
+      settleBig.textContent = '';
+      settleSub.textContent = 'Chaque dépense est partagée en deux, quel que soit celui qui paie.';
+    } else {
+      const [a, b] = PEOPLE;
+      const half = totEUR / 2;
+      const owed = half - Math.min(per[a] || 0, per[b] || 0); // ce que le "petit payeur" doit au "gros payeur"
+      if (owed < 0.005) {
+        settleBig.textContent = '✓ Vous êtes à égalité';
+        settleSub.textContent = 'Chacun a payé ' + fmtEUR.format(half) + '.';
+      } else {
+        const debtor = (per[a] || 0) < (per[b] || 0) ? a : b;
+        const creditor = debtor === a ? b : a;
+        settleBig.innerHTML = esc(debtor) + ' doit <span style="color:var(--series-1)">' + fmtEUR.format(owed) + '</span> à ' + esc(creditor);
+        settleSub.textContent = 'soit ' + fmtCAD.format(owed * rate()) + ' — part de chacun : ' + fmtEUR.format(half);
+      }
+    }
 
     // list (recent first)
     const sorted = entries.sort((a,b) => (b[1].date.localeCompare(a[1].date)) || ((b[1].ts||0) - (a[1].ts||0)));
