@@ -120,12 +120,14 @@
   .exp .conv { text-align: right; font-size: .76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .exp .del { background: none; border: none; color: var(--critical); font-size: 1.2rem; padding: 0 2px; width: auto; min-height: 0; grid-row: 1 / 3; align-self: center; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; flex: none; }
+  .exp .editbtn { background: none; border: none; color: var(--text-muted); font-size: 1.05rem; padding: 0 2px; width: auto; min-height: 0; }
   .pname { font-weight: 600; }
   .exp-line2 { display: flex; justify-content: space-between; align-items: center; grid-column: 1 / 2; }
   .empty { color: var(--text-muted); font-size: .85rem; padding: 14px 4px; text-align: center; }
 
   /* Per-person bars */
-  .pbar-row { display: grid; grid-template-columns: minmax(64px, auto) 1fr; gap: 2px 10px; margin-bottom: 10px; font-size: .84rem; }
+  .pbar-row { display: grid; grid-template-columns: 106px 1fr; gap: 2px 10px; margin-bottom: 10px; font-size: .84rem; }
+  .pbar-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; }
   .pbar-track { height: 10px; background: var(--track); border-radius: 5px; overflow: hidden; align-self: center; }
   .pbar-fill { height: 100%; border-radius: 5px 4px 4px 5px; background: var(--series-1); }
   .pbar-val { grid-column: 2; font-variant-numeric: tabular-nums; color: var(--text-secondary); font-size: .78rem; }
@@ -224,7 +226,7 @@
 
   <!-- Add expense -->
   <div class="card">
-    <h2>Ajouter une dépense</h2>
+    <h2 id="formTitle">Ajouter une dépense</h2>
     <div class="row" style="margin-bottom:8px">
       <div style="flex:1 1 100%">
         <label for="desc">Description</label>
@@ -270,7 +272,8 @@
         <input type="time" id="time">
       </div>
     </div>
-    <button class="wide" onclick="addExpense()">+ Ajouter la dépense</button>
+    <button class="wide" id="addBtn" onclick="addExpense()">+ Ajouter la dépense</button>
+    <button class="ghost wide hidden" id="cancelEditBtn" onclick="cancelEdit()" style="margin-top:8px">Annuler la modification</button>
   </div>
 
   <!-- Per person + settlement -->
@@ -490,13 +493,15 @@
     render();
   }
 
+  let editingKey = null;
+
   function addExpense() {
     const desc = document.getElementById('desc').value.trim();
     const amount = parseFloat(document.getElementById('amount').value);
     if (!desc) { toast('Ajoutez une description.'); return; }
     if (!amount || amount <= 0) { toast('Indiquez un montant.'); return; }
     const payer = document.getElementById('payer').value;
-    if (!payer) { toast("Ajoutez d'abord un participant en bas de page."); return; }
+    if (!payer) { toast('Choisissez qui a payé.'); return; }
     const exp = {
       date: document.getElementById('date').value || todayLocal(),
       time: document.getElementById('time').value || nowTime(),
@@ -505,18 +510,53 @@
       payer,
       amount,
       cur: document.getElementById('cur').value,
-      ts: Date.now()
+      ts: editingKey ? ((state.expenses[editingKey] || {}).ts || Date.now()) : Date.now()
     };
+    if (editingKey) {
+      if (mode === 'sync') dbRef.child('expenses/' + editingKey).set(exp);
+      else { state.expenses[editingKey] = exp; persistLocal(); }
+      toast('Dépense modifiée ✓');
+      cancelEdit();
+    } else {
+      if (mode === 'sync') dbRef.child('expenses').push(exp);
+      else { state.expenses[newKey()] = exp; persistLocal(); }
+      document.getElementById('desc').value = '';
+      document.getElementById('amount').value = '';
+      resetDateTime();
+      toast('Dépense ajoutée ✓');
+    }
+  }
+  function removeExpense(key) {
+    if (key === editingKey) cancelEdit();
+    if (mode === 'sync') dbRef.child('expenses/' + key).remove();
+    else { delete state.expenses[key]; persistLocal(); }
+  }
+
+  function startEdit(key) {
+    const e = state.expenses[key];
+    if (!e) return;
+    editingKey = key;
+    document.getElementById('desc').value = e.desc;
+    document.getElementById('amount').value = e.amount;
+    document.getElementById('cur').value = e.cur;
+    document.getElementById('payer').value = e.payer;
+    document.getElementById('cat').value = e.cat;
+    document.getElementById('date').value = e.date;
+    document.getElementById('time').value = e.time || '';
+    document.getElementById('formTitle').textContent = 'Modifier la dépense';
+    document.getElementById('addBtn').textContent = '✓ Enregistrer la modification';
+    document.getElementById('cancelEditBtn').classList.remove('hidden');
+    document.getElementById('formTitle').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    editingKey = null;
     document.getElementById('desc').value = '';
     document.getElementById('amount').value = '';
     resetDateTime();
-    if (mode === 'sync') dbRef.child('expenses').push(exp);
-    else { state.expenses[newKey()] = exp; persistLocal(); }
-    toast('Dépense ajoutée ✓');
-  }
-  function removeExpense(key) {
-    if (mode === 'sync') dbRef.child('expenses/' + key).remove();
-    else { delete state.expenses[key]; persistLocal(); }
+    document.getElementById('formTitle').textContent = 'Ajouter une dépense';
+    document.getElementById('addBtn').textContent = '+ Ajouter la dépense';
+    document.getElementById('cancelEditBtn').classList.add('hidden');
   }
 
   // ---------- Render ----------
@@ -608,11 +648,12 @@
           <div class="desc" style="display:flex; align-items:center">${pdot(e.payer)}<span>${esc(e.desc)}</span></div>
           <div class="meta">${fmtDate(e.date)}${e.time ? ' à ' + esc(e.time) : ''} · ${esc(e.cat)} · payé par ${pname(e.payer)}</div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px">
+        <div style="display:flex; align-items:center; gap:6px">
           <div>
             <div class="amt">${fmt(e.amount, e.cur)}</div>
             <div class="conv">${e.cur==='CAD' ? fmtEUR.format(toEUR(e.amount,'CAD')) : fmtCAD.format(toCAD(e.amount,'EUR'))}</div>
           </div>
+          <button class="editbtn" title="Modifier" onclick="startEdit('${k}')">✎</button>
           <button class="del" title="Supprimer" onclick="removeExpense('${k}')">×</button>
         </div>
       </div>`).join('')
