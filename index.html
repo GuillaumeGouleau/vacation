@@ -259,6 +259,10 @@
         <label for="date">Date</label>
         <input type="date" id="date">
       </div>
+      <div style="flex:0 1 110px">
+        <label for="time">Heure</label>
+        <input type="time" id="time">
+      </div>
     </div>
     <button class="wide" onclick="addExpense()">+ Ajouter la dépense</button>
   </div>
@@ -334,6 +338,14 @@
   function todayLocal() {
     const d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function nowTime() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  function resetDateTime() {
+    document.getElementById('date').value = todayLocal();
+    document.getElementById('time').value = nowTime();
   }
   function toast(msg) {
     const t = document.getElementById('toast');
@@ -448,7 +460,7 @@
   function showApp() {
     document.getElementById('setupScreen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
-    document.getElementById('date').value = todayLocal();
+    resetDateTime();
   }
 
   // ---------- Writes ----------
@@ -478,6 +490,7 @@
     if (!payer) { toast("Ajoutez d'abord un participant en bas de page."); return; }
     const exp = {
       date: document.getElementById('date').value || todayLocal(),
+      time: document.getElementById('time').value || nowTime(),
       desc,
       cat: document.getElementById('cat').value,
       payer,
@@ -487,6 +500,7 @@
     };
     document.getElementById('desc').value = '';
     document.getElementById('amount').value = '';
+    resetDateTime();
     if (mode === 'sync') dbRef.child('expenses').push(exp);
     else { state.expenses[newKey()] = exp; persistLocal(); }
     toast('Dépense ajoutée ✓');
@@ -578,12 +592,12 @@
     }
 
     // list (recent first)
-    const sorted = entries.sort((a,b) => (b[1].date.localeCompare(a[1].date)) || ((b[1].ts||0) - (a[1].ts||0)));
+    const sorted = entries.sort((a,b) => (b[1].date.localeCompare(a[1].date)) || ((b[1].time||'').localeCompare(a[1].time||'')) || ((b[1].ts||0) - (a[1].ts||0)));
     document.getElementById('expList').innerHTML = sorted.length ? sorted.map(([k, e]) => `
       <div class="exp">
         <div>
           <div class="desc">${esc(e.desc)}</div>
-          <div class="meta">${fmtDate(e.date)} · ${esc(e.cat)} · payé par ${esc(e.payer)}</div>
+          <div class="meta">${fmtDate(e.date)}${e.time ? ' à ' + esc(e.time) : ''} · ${esc(e.cat)} · payé par ${esc(e.payer)}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px">
           <div>
@@ -609,10 +623,10 @@
       .catch(() => { prompt('Copiez ce lien :', url); });
   }
   function exportCSV() {
-    const rows = [['Date','Description','Catégorie','Payé par','Montant','Devise','Équivalent EUR','Équivalent CAD']];
+    const rows = [['Date','Heure','Description','Catégorie','Payé par','Montant','Devise','Équivalent EUR','Équivalent CAD']];
     Object.values(state.expenses)
-      .sort((a,b) => a.date.localeCompare(b.date))
-      .forEach(e => rows.push([e.date, e.desc, e.cat, e.payer, e.amount.toFixed(2), e.cur,
+      .sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''))
+      .forEach(e => rows.push([e.date, e.time || '', e.desc, e.cat, e.payer, e.amount.toFixed(2), e.cur,
         toEUR(e.amount, e.cur).toFixed(2), toCAD(e.amount, e.cur).toFixed(2)]));
     const csv = '﻿' + rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\r\n');
     const a = document.createElement('a');
